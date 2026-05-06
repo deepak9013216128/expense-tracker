@@ -95,7 +95,41 @@ export default function AnalyticsPage() {
       .filter(d => d.value > 0)
   }, [filtered, total])
 
-  const dailyData = useMemo(() => {
+  const trendData = useMemo(() => {
+    if (range === '3months') {
+      // Group by month
+      const map = new Map<string, number>()
+      filtered.forEach(t => {
+        const key = t.date.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
+        map.set(key, (map.get(key) || 0) + t.amount)
+      })
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+      return Array.from(map.entries())
+        .map(([date, amount]) => ({ date, amount }))
+        .sort((a, b) => {
+          const [am, ay] = [months.indexOf(a.date.slice(0,3)), a.date.slice(4)]
+          const [bm, by] = [months.indexOf(b.date.slice(0,3)), b.date.slice(4)]
+          return ay !== by ? ay.localeCompare(by) : am - bm
+        })
+    }
+    if (range === 'month') {
+      // Group by week number (week start date)
+      const map = new Map<string, { amount: number; weekStart: Date }>()
+      filtered.forEach(t => {
+        const d = new Date(t.date)
+        d.setDate(d.getDate() - d.getDay()) // Sunday of that week
+        const key = d.toISOString().slice(0, 10)
+        const existing = map.get(key)
+        map.set(key, { amount: (existing?.amount || 0) + t.amount, weekStart: d })
+      })
+      return Array.from(map.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([, { amount, weekStart }]) => ({
+          date: weekStart.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+          amount,
+        }))
+    }
+    // week → daily
     const map = new Map<string, number>()
     filtered.forEach(t => {
       const key = formatDateShort(t.date)
@@ -104,7 +138,7 @@ export default function AnalyticsPage() {
     return Array.from(map.entries())
       .map(([date, amount]) => ({ date, amount }))
       .sort((a, b) => a.date.localeCompare(b.date))
-  }, [filtered])
+  }, [filtered, range])
 
   // MoM: respects category + method filters, but uses its own time window
   const momData = useMemo(() => {
@@ -201,11 +235,11 @@ export default function AnalyticsPage() {
   }), [total])
 
   const trendChartData = useMemo<ChartData<'bar'>>(() => ({
-    labels: dailyData.map(d => d.date),
+    labels: trendData.map(d => d.date),
     datasets: [
       {
         label: 'Spent',
-        data: dailyData.map(d => d.amount),
+        data: trendData.map(d => d.amount),
         backgroundColor: '#6366f1',
         borderColor: '#4f46e5',
         borderRadius: 8,
@@ -215,7 +249,7 @@ export default function AnalyticsPage() {
         minBarLength: 6,
       },
     ],
-  }), [dailyData])
+  }), [trendData])
 
   const trendChartOptions = useMemo<ChartOptions<'bar'>>(() => ({
     responsive: true,
@@ -414,16 +448,16 @@ export default function AnalyticsPage() {
           )}
 
           {/* Spending trend */}
-          {dailyData.length > 0 && (
+          {trendData.length > 0 && (
             <div className="bg-white rounded-2xl p-4" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
               <div className="flex items-center justify-between gap-3 mb-3">
                 <h2 className="font-semibold text-slate-900 text-base tracking-tight">Spending Trend</h2>
                 <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                  {dailyData.length} days
+                  {trendData.length} {range === '3months' ? 'months' : range === 'month' ? 'weeks' : 'days'}
                 </span>
               </div>
               <div className="overflow-x-auto rounded-xl bg-slate-50">
-                <div style={{ minWidth: '100%', width: Math.max(dailyData.length * 40, 100), height: 210 }} className="px-2 py-3">
+                <div style={{ minWidth: '100%', width: Math.max(trendData.length * 40, 100), height: 210 }} className="px-2 py-3">
                   <Bar data={trendChartData} options={trendChartOptions} />
                 </div>
               </div>
