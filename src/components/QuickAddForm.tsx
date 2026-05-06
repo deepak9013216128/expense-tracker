@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react'
-import { Transaction, DEFAULT_CATEGORIES, PaymentMethod } from '@/types'
+import { Transaction, PaymentMethod } from '@/types'
 import { useCategories } from '@/hooks/useCategories'
 import { ChevronDown, CalendarDays, X } from 'lucide-react'
 import CategoryIcon from '@/components/CategoryIcon'
@@ -95,7 +95,7 @@ export default function QuickAddForm({ onAdd }: QuickAddFormProps) {
       {/* Amount input */}
       <div className="px-5 pt-5 pb-4">
         <div className="flex items-center gap-1">
-          <span className="text-4xl font-bold text-slate-300 select-none">₹</span>
+          <span className="text-4xl max-[360px]:text-3xl font-bold text-slate-300 select-none">₹</span>
           <input
             ref={amountRef}
             type="number"
@@ -105,7 +105,7 @@ export default function QuickAddForm({ onAdd }: QuickAddFormProps) {
             onChange={e => setAmount(e.target.value)}
             min="0"
             step="0.01"
-            className="flex-1 text-4xl font-bold text-slate-900 bg-transparent border-none outline-none focus:outline-none placeholder:text-slate-200 tabular-nums min-w-0"
+            className="flex-1 text-4xl max-[360px]:text-3xl font-bold text-slate-900 bg-transparent border-none outline-none focus:outline-none placeholder:text-slate-200 tabular-nums min-w-0"
           />
         </div>
       </div>
@@ -128,10 +128,10 @@ export default function QuickAddForm({ onAdd }: QuickAddFormProps) {
       <div className="h-px bg-slate-50" />
 
       {/* Date picker */}
-      <div className="px-5 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="px-5 py-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
           <CalendarDays size={15} className="text-slate-400" />
-          <span className="text-sm font-medium text-slate-700">{dateLabel(date)}</span>
+          <span className="text-sm font-medium text-slate-700 truncate">{dateLabel(date)}</span>
         </div>
         <input
           ref={dateRef}
@@ -139,7 +139,7 @@ export default function QuickAddForm({ onAdd }: QuickAddFormProps) {
           value={date}
           max={toLocalDateString(new Date())}
           onChange={e => setDate(e.target.value)}
-          className="text-xs text-indigo-600 font-medium bg-indigo-50 rounded-lg px-2.5 py-1.5 border-none outline-none cursor-pointer"
+          className="text-xs text-indigo-600 font-medium bg-indigo-50 rounded-lg px-2.5 py-1.5 border-none outline-none cursor-pointer flex-shrink-0 max-w-[150px]"
         />
       </div>
 
@@ -149,13 +149,13 @@ export default function QuickAddForm({ onAdd }: QuickAddFormProps) {
       {/* Category picker */}
       <div className="px-5 py-4">
         <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-3">Category</p>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-4 gap-2 max-[360px]:gap-1.5">
           {categories.map(cat => (
             <button
               key={cat.id}
               type="button"
               onClick={() => setCategory(cat.id)}
-              className={`flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl transition-all duration-150 active:scale-95 ${
+              className={`min-w-0 flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl transition-all duration-150 active:scale-95 ${
                 category === cat.id
                   ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
                   : 'bg-slate-50 text-slate-600 hover:bg-slate-100'

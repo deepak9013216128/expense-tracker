@@ -8,6 +8,18 @@ export const toLocalDateString = (d: Date): string => {
 export const formatINR = (amount: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount)
 
+export const formatCompactINR = (amount: number): string => {
+  const abs = Math.abs(amount)
+  const sign = amount < 0 ? '-' : ''
+  const value = (n: number) => n % 1 === 0 ? n.toFixed(0) : n.toFixed(1)
+
+  if (abs >= 10000000) return `${sign}₹${value(abs / 10000000)}Cr`
+  if (abs >= 100000) return `${sign}₹${value(abs / 100000)}L`
+  if (abs >= 1000) return `${sign}₹${value(abs / 1000)}K`
+
+  return `${sign}₹${Math.round(abs).toLocaleString('en-IN')}`
+}
+
 export const formatDate = (date: Date) =>
   new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }).format(date)
 

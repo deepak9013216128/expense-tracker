@@ -128,3 +128,15 @@
     @apply font-sans;
   }
 }
+
+@layer utilities {
+  .no-scrollbar,
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar,
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}

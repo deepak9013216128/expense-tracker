@@ -3,12 +3,32 @@
 import { useState, useMemo } from 'react'
 import { useTransactions } from '@/hooks/useTransactions'
 import { DEFAULT_CATEGORIES } from '@/types'
-import { formatINR, formatDateShort } from '@/lib/format'
+import { formatCompactINR, formatINR, formatDateShort } from '@/lib/format'
 import CategoryIcon from '@/components/CategoryIcon'
 import {
-  PieChart, Pie, Cell, Tooltip,
-  BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
-} from 'recharts'
+  ArcElement,
+  BarElement,
+  CategoryScale,
+  Chart as ChartJS,
+  Filler,
+  Legend,
+  LinearScale,
+  Tooltip,
+  type ChartData,
+  type ChartOptions,
+  type TooltipItem,
+} from 'chart.js'
+import { Bar, Doughnut } from 'react-chartjs-2'
+
+ChartJS.register(
+  ArcElement,
+  BarElement,
+  CategoryScale,
+  Filler,
+  Legend,
+  LinearScale,
+  Tooltip
+)
 
 type Range = 'week' | 'month' | '3months'
 const RANGES: { label: string; value: Range }[] = [
@@ -62,9 +82,18 @@ export default function AnalyticsPage() {
     const map = new Map<string, number>()
     filtered.forEach(t => map.set(t.category, (map.get(t.category) || 0) + t.amount))
     return DEFAULT_CATEGORIES
-      .map(cat => ({ id: cat.id, name: cat.name, value: map.get(cat.id) || 0, color: cat.color }))
+      .map(cat => {
+        const value = map.get(cat.id) || 0
+        return {
+          id: cat.id,
+          name: cat.name,
+          value,
+          color: cat.color,
+          percent: total > 0 ? Math.round((value / total) * 100) : 0,
+        }
+      })
       .filter(d => d.value > 0)
-  }, [filtered])
+  }, [filtered, total])
 
   const dailyData = useMemo(() => {
     const map = new Map<string, number>()
@@ -124,14 +153,135 @@ export default function AnalyticsPage() {
 
   const activeFilters = (catFilter !== 'all' ? 1 : 0) + (methodFilter !== 'all' ? 1 : 0)
 
+  const categoryChartData = useMemo<ChartData<'doughnut'>>(() => ({
+    labels: categoryData.map(d => d.name),
+    datasets: [
+      {
+        data: categoryData.map(d => d.value),
+        backgroundColor: categoryData.map(d => d.color),
+        borderColor: '#ffffff',
+        borderRadius: 5,
+        borderWidth: 3,
+        hoverBorderWidth: 3,
+        hoverOffset: 8,
+        spacing: 2,
+      },
+    ],
+  }), [categoryData])
+
+  const categoryChartOptions = useMemo<ChartOptions<'doughnut'>>(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '68%',
+    animation: { duration: 450 },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#0f172a',
+        borderColor: '#1e293b',
+        borderWidth: 1,
+        boxPadding: 4,
+        caretPadding: 8,
+        cornerRadius: 12,
+        displayColors: true,
+        padding: 10,
+        titleColor: '#cbd5e1',
+        bodyColor: '#ffffff',
+        titleFont: { size: 11, weight: 'normal' },
+        bodyFont: { size: 12, weight: 'bold' },
+        callbacks: {
+          label: (ctx: TooltipItem<'doughnut'>) => {
+            const value = Number(ctx.raw || 0)
+            const pct = total > 0 ? Math.round((value / total) * 100) : 0
+            return `${formatINR(value)} (${pct}%)`
+          },
+        },
+      },
+    },
+  }), [total])
+
+  const trendChartData = useMemo<ChartData<'bar'>>(() => ({
+    labels: dailyData.map(d => d.date),
+    datasets: [
+      {
+        label: 'Spent',
+        data: dailyData.map(d => d.amount),
+        backgroundColor: '#6366f1',
+        borderColor: '#4f46e5',
+        borderRadius: 8,
+        borderSkipped: false,
+        hoverBackgroundColor: '#4f46e5',
+        maxBarThickness: 28,
+        minBarLength: 6,
+      },
+    ],
+  }), [dailyData])
+
+  const trendChartOptions = useMemo<ChartOptions<'bar'>>(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 450 },
+    interaction: {
+      intersect: false,
+      mode: 'index',
+    },
+    layout: {
+      padding: { top: 8, right: 4, bottom: 0, left: 0 },
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#0f172a',
+        borderColor: '#1e293b',
+        borderWidth: 1,
+        caretPadding: 8,
+        cornerRadius: 12,
+        displayColors: false,
+        padding: 10,
+        titleColor: '#cbd5e1',
+        bodyColor: '#ffffff',
+        titleFont: { size: 11, weight: 'normal' },
+        bodyFont: { size: 12, weight: 'bold' },
+        callbacks: {
+          label: (ctx: TooltipItem<'bar'>) => formatINR(Number(ctx.raw || 0)),
+        },
+      },
+    },
+    scales: {
+      x: {
+        border: { display: false },
+        grid: { display: false },
+        ticks: {
+          color: '#94a3b8',
+          font: { size: 10, weight: 500 },
+          maxRotation: 0,
+          minRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: 5,
+        },
+      },
+      y: {
+        beginAtZero: true,
+        border: { display: false },
+        grid: { color: '#f1f5f9' },
+        ticks: {
+          color: '#94a3b8',
+          font: { size: 10, weight: 500 },
+          padding: 6,
+          callback: value => formatCompactINR(Number(value)).replace('₹', ''),
+        },
+      },
+    },
+  }), [])
+
   return (
     <div className="space-y-5 pt-4 pb-2">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900 tracking-tight">Analytics</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-bold text-slate-900 tracking-tight min-w-0">Analytics</h1>
         {activeFilters > 0 && (
           <button
             onClick={() => { setCatFilter('all'); setMethodFilter('all') }}
-            className="text-xs font-medium text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full"
+            className="text-xs font-medium text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full flex-shrink-0"
           >
             Clear filters ({activeFilters})
           </button>
@@ -175,16 +325,16 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Payment method filter */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
         <button onClick={() => setMethodFilter('all')}
-          className={`px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all active:scale-95 ${
+          className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all active:scale-95 ${
             methodFilter === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'
           }`}>
           All Methods
         </button>
         {METHODS.map(m => (
           <button key={m} onClick={() => setMethodFilter(m)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all active:scale-95 ${
+            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all active:scale-95 ${
               methodFilter === m ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'
             }`}>
             {m}
@@ -193,23 +343,27 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Summary stats */}
-      <div className="bg-white rounded-2xl p-5" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-        <div className="grid grid-cols-3 divide-x divide-slate-100">
-          <div className="pr-4">
+      <div className="bg-white rounded-2xl p-4" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="min-w-0 rounded-xl bg-slate-50 px-3 py-3">
             <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">Total Spent</p>
-            <p className="font-bold text-slate-900 text-lg tabular-nums leading-tight">{formatINR(total)}</p>
+            <p className="font-bold text-slate-900 text-lg max-[360px]:text-base tabular-nums leading-tight truncate" title={formatINR(total)}>
+              {formatCompactINR(total)}
+            </p>
           </div>
-          <div className="px-4">
+          <div className="min-w-0 rounded-xl bg-slate-50 px-3 py-3">
             <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">Avg/day</p>
-            <p className="font-bold text-slate-900 text-lg tabular-nums leading-tight">{formatINR(avgPerDay)}</p>
+            <p className="font-bold text-slate-900 text-lg max-[360px]:text-base tabular-nums leading-tight truncate" title={formatINR(avgPerDay)}>
+              {formatCompactINR(avgPerDay)}
+            </p>
           </div>
-          <div className="pl-4">
+          <div className="min-w-0 rounded-xl bg-slate-50 px-3 py-3">
             <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">Top Cat.</p>
-            <p className="font-bold text-slate-900 text-sm leading-tight mt-1">
+            <p className="font-bold text-slate-900 text-sm leading-tight mt-1 min-w-0">
               {topCategory ? (
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 min-w-0">
                   <CategoryIcon id={topCategory.id} size={14} style={{ color: topCategory.color }} />
-                  {topCategory.name}
+                  <span className="truncate">{topCategory.name}</span>
                 </span>
               ) : '—'}
             </p>
@@ -227,26 +381,31 @@ export default function AnalyticsPage() {
         <>
           {/* Category breakdown */}
           {categoryData.length > 0 && catFilter === 'all' && (
-            <div className="bg-white rounded-2xl p-5" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-              <h2 className="font-semibold text-slate-900 text-base mb-4 tracking-tight">Category Breakdown</h2>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={categoryData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value">
-                    {categoryData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: '12px' }} />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="bg-white rounded-2xl p-4" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h2 className="font-semibold text-slate-900 text-base tracking-tight min-w-0">Category Breakdown</h2>
+                <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full flex-shrink-0">
+                  {categoryData.length} cats
+                </span>
+              </div>
+              <div className="relative mx-auto h-[210px] max-w-[260px]">
+                <Doughnut data={categoryChartData} options={categoryChartOptions} />
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-[10px] font-medium uppercase tracking-widest text-slate-400">Total</span>
+                  <span className="text-xl font-bold tabular-nums text-slate-900">{formatCompactINR(total)}</span>
+                </div>
+              </div>
               <div className="space-y-2.5 mt-3">
                 {categoryData.map(d => (
                   <div key={d.name} className="flex items-center gap-2.5">
                     <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
-                    <span className="text-sm text-slate-600 flex-1 font-normal flex items-center gap-1">
-                      <CategoryIcon id={d.id} size={13} style={{ color: d.color }} /> {d.name}
+                    <span className="text-sm text-slate-600 flex-1 min-w-0 font-normal flex items-center gap-1">
+                      <CategoryIcon id={d.id} size={13} style={{ color: d.color }} />
+                      <span className="truncate">{d.name}</span>
                     </span>
-                    <span className="text-sm font-semibold text-slate-900 tabular-nums">{formatINR(d.value)}</span>
+                    <span className="text-sm font-semibold text-slate-900 tabular-nums flex-shrink-0">{formatCompactINR(d.value)}</span>
                     <span className="text-xs text-slate-400 tabular-nums w-8 text-right">
-                      {total > 0 ? Math.round((d.value / total) * 100) : 0}%
+                      {d.percent}%
                     </span>
                   </div>
                 ))}
@@ -256,16 +415,18 @@ export default function AnalyticsPage() {
 
           {/* Spending trend */}
           {dailyData.length > 0 && (
-            <div className="bg-white rounded-2xl p-5" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-              <h2 className="font-semibold text-slate-900 text-base mb-4 tracking-tight">Spending Trend</h2>
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={dailyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: '12px' }} cursor={{ fill: '#f1f5f9', radius: 8 }} />
-                  <Bar dataKey="amount" fill="#6366f1" radius={[5, 5, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="bg-white rounded-2xl p-4" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h2 className="font-semibold text-slate-900 text-base tracking-tight">Spending Trend</h2>
+                <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                  {dailyData.length} days
+                </span>
+              </div>
+              <div className="overflow-x-auto rounded-xl bg-slate-50">
+                <div style={{ minWidth: '100%', width: Math.max(dailyData.length * 40, 100), height: 210 }} className="px-2 py-3">
+                  <Bar data={trendChartData} options={trendChartOptions} />
+                </div>
+              </div>
             </div>
           )}
 
@@ -278,9 +439,11 @@ export default function AnalyticsPage() {
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 mb-4">
                 <div>
                   <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">This month</p>
-                  <p className="text-xl font-bold text-slate-900 tabular-nums">{formatINR(momData.thisTotal)}</p>
+                  <p className="text-xl max-[360px]:text-lg font-bold text-slate-900 tabular-nums" title={formatINR(momData.thisTotal)}>
+                    {formatCompactINR(momData.thisTotal)}
+                  </p>
                 </div>
-                <div className="text-right">
+                <div className="text-right min-w-0">
                   {momData.pct !== null && (
                     <span className={`inline-flex items-center gap-1 text-sm font-bold px-3 py-1.5 rounded-full ${
                       momData.delta > 0 ? 'bg-red-50 text-red-500' : momData.delta < 0 ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'
@@ -288,7 +451,9 @@ export default function AnalyticsPage() {
                       {momData.delta > 0 ? '↑' : momData.delta < 0 ? '↓' : '='} {momData.pct}%
                     </span>
                   )}
-                  <p className="text-xs text-slate-400 mt-1 tabular-nums">{formatINR(momData.prevTotal)} last month</p>
+                  <p className="text-xs text-slate-400 mt-1 tabular-nums truncate" title={`${formatINR(momData.prevTotal)} last month`}>
+                    {formatCompactINR(momData.prevTotal)} last month
+                  </p>
                 </div>
               </div>
 
@@ -298,15 +463,15 @@ export default function AnalyticsPage() {
                   return (
                     <div key={cat.id}>
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-slate-700 min-w-0">
                           <CategoryIcon id={cat.id} size={13} style={{ color: cat.color }} />
-                          {cat.name}
+                          <span className="truncate">{cat.name}</span>
                         </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-900 tabular-nums">{formatINR(cur)}</span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs font-bold text-slate-900 tabular-nums" title={formatINR(cur)}>{formatCompactINR(cur)}</span>
                           {delta !== 0 && (
                             <span className={`text-[10px] font-semibold tabular-nums ${delta > 0 ? 'text-red-500' : 'text-green-600'}`}>
-                              {delta > 0 ? '+' : ''}{formatINR(delta)}
+                              {delta > 0 ? '+' : ''}{formatCompactINR(delta)}
                             </span>
                           )}
                         </div>
@@ -339,7 +504,7 @@ export default function AnalyticsPage() {
                   <div key={tag} className="space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-medium bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full">{tag}</span>
-                      <span className="text-sm font-semibold text-slate-900 tabular-nums">{formatINR(amount)}</span>
+                      <span className="text-sm font-semibold text-slate-900 tabular-nums flex-shrink-0" title={formatINR(amount)}>{formatCompactINR(amount)}</span>
                     </div>
                     <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                       <div className="h-full bg-indigo-500 rounded-full transition-all duration-500" style={{ width: `${(amount / maxTagAmount) * 100}%` }} />

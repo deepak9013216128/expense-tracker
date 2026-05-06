@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, KeyboardEvent } from 'react'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useCategories } from '@/hooks/useCategories'
 import { Transaction } from '@/types'
-import { formatINR, getDateLabel, toLocalDateString } from '@/lib/format'
+import { formatCompactINR, formatINR, getDateLabel, toLocalDateString } from '@/lib/format'
 import {
   Dialog,
   DialogContent,
@@ -12,11 +12,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Search, Trash2, Pencil, X, AlertTriangle } from 'lucide-react'
+import { AlertTriangle, CalendarDays, Pencil, Search, Trash2, X } from 'lucide-react'
 import CategoryIcon from '@/components/CategoryIcon'
 import { DEFAULT_CATEGORIES } from '@/types'
 
 const PAGE_SIZE = 20
+
+function monthStart() {
+  const now = new Date()
+  return toLocalDateString(new Date(now.getFullYear(), now.getMonth(), 1))
+}
 
 
 export default function HistoryPage() {
@@ -27,6 +32,8 @@ export default function HistoryPage() {
   const [filterMethod, setFilterMethod] = useState<string | null>(null)
   const [minAmount, setMinAmount] = useState('')
   const [maxAmount, setMaxAmount] = useState('')
+  const [startDate, setStartDate] = useState(monthStart)
+  const [endDate, setEndDate] = useState(() => toLocalDateString(new Date()))
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Transaction | null>(null)
   const [editing, setEditing] = useState(false)
@@ -36,15 +43,35 @@ export default function HistoryPage() {
   const filtered = useMemo(() => {
     const min = minAmount ? parseFloat(minAmount) : null
     const max = maxAmount ? parseFloat(maxAmount) : null
+    const start = startDate ? new Date(startDate + 'T00:00:00') : null
+    const end = endDate ? new Date(endDate + 'T23:59:59') : null
     return transactions.filter(t => {
       const matchSearch = t.description.toLowerCase().includes(search.toLowerCase())
       const matchCat = filterCategory ? t.category === filterCategory : true
       const matchMethod = filterMethod ? t.paymentMethod === filterMethod : true
       const matchMin = min !== null ? t.amount >= min : true
       const matchMax = max !== null ? t.amount <= max : true
-      return matchSearch && matchCat && matchMethod && matchMin && matchMax
+      const matchStart = start ? t.date >= start : true
+      const matchEnd = end ? t.date <= end : true
+      return matchSearch && matchCat && matchMethod && matchMin && matchMax && matchStart && matchEnd
     })
-  }, [transactions, search, filterCategory, filterMethod, minAmount, maxAmount])
+  }, [transactions, search, filterCategory, filterMethod, minAmount, maxAmount, startDate, endDate])
+
+  const filteredTotal = useMemo(() => filtered.reduce((sum, txn) => sum + txn.amount, 0), [filtered])
+
+  const selectedCategoryName = filterCategory
+    ? categories.find(c => c.id === filterCategory)?.name || DEFAULT_CATEGORIES.find(c => c.id === filterCategory)?.name
+    : null
+
+  const activeFilterCount = [
+    search,
+    filterCategory,
+    filterMethod,
+    minAmount,
+    maxAmount,
+    startDate,
+    endDate,
+  ].filter(Boolean).length
 
   const paginated = filtered.slice(0, page * PAGE_SIZE)
 
@@ -181,6 +208,64 @@ export default function HistoryPage() {
             <X size={14} />
           </button>
         )}
+      </div>
+
+      {/* Date range filter */}
+      <div className="bg-white rounded-2xl p-3" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <CalendarDays size={15} className="text-slate-400" />
+            <p className="text-[10px] font-medium uppercase tracking-widest text-slate-400">Date range</p>
+          </div>
+          {(startDate || endDate) && (
+            <button
+              type="button"
+              onClick={() => { setStartDate(''); setEndDate(''); setPage(1) }}
+              className="flex-shrink-0 text-xs font-medium text-indigo-600"
+            >
+              All time
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <input
+            type="date"
+            value={startDate}
+            max={endDate || toLocalDateString(new Date())}
+            onChange={e => { setStartDate(e.target.value); setPage(1) }}
+            className="min-w-0 rounded-xl bg-slate-50 px-3 py-2.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <span className="text-slate-300">—</span>
+          <input
+            type="date"
+            value={endDate}
+            min={startDate || undefined}
+            max={toLocalDateString(new Date())}
+            onChange={e => { setEndDate(e.target.value); setPage(1) }}
+            className="min-w-0 rounded-xl bg-slate-50 px-3 py-2.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+      </div>
+
+      {/* Filter summary */}
+      <div className="grid grid-cols-[1fr_auto] items-stretch gap-2 rounded-2xl bg-white p-4" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+        <div className="min-w-0">
+          <p className="text-[10px] font-medium uppercase tracking-widest text-slate-400">
+            {startDate || endDate ? 'Selected range total' : 'All time total'}
+          </p>
+          <p className="mt-1 truncate text-2xl font-bold leading-tight text-slate-900 tabular-nums" title={formatINR(filteredTotal)}>
+            {formatCompactINR(filteredTotal)}
+          </p>
+          <p className="mt-1 truncate text-xs text-slate-400">
+            {selectedCategoryName ? `${selectedCategoryName} · ` : ''}
+            {filterMethod ? `${filterMethod} · ` : ''}
+            {filtered.length} transaction{filtered.length === 1 ? '' : 's'}
+          </p>
+        </div>
+        <div className="flex min-w-[76px] flex-col items-end justify-center rounded-xl bg-indigo-50 px-3">
+          <span className="text-2xl font-bold text-indigo-600 tabular-nums">{activeFilterCount}</span>
+          <span className="text-[10px] font-medium uppercase tracking-widest text-indigo-400">Filters</span>
+        </div>
       </div>
 
       {/* Grouped list */}
