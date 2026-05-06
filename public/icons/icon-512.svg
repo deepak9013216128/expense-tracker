@@ -1,1 +1,8 @@
-<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='#6366f1'/><text x='256' y='330' font-size='240' text-anchor='middle' fill='white'>💰</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#6366f1"/>
+  <rect x="120" y="134" width="272" height="244" rx="48" fill="#ffffff"/>
+  <path d="M160 134h160c40 0 72 32 72 72v6H208c-48 0-88-34-88-78z" fill="#e0e7ff"/>
+  <rect x="154" y="232" width="204" height="32" rx="16" fill="#6366f1"/>
+  <rect x="154" y="298" width="128" height="32" rx="16" fill="#22c55e"/>
+  <circle cx="352" cy="314" r="22" fill="#6366f1"/>
+</svg>
