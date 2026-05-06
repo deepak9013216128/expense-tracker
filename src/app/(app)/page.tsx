@@ -199,6 +199,26 @@ export default function HomePage() {
         </div>
       </div>
 
+      {/* Recent transactions */}
+      {recentTransactions.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-semibold text-slate-900 tracking-tight">Recent</h2>
+            <Link
+              href="/history"
+              className="text-sm text-indigo-600 font-medium hover:text-indigo-700 transition-colors"
+            >
+              See all
+            </Link>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm divide-y divide-slate-50" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+            {recentTransactions.map(txn => (
+              <TransactionRow key={txn.id} txn={txn} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Budget progress */}
       {activeBudgets.length > 0 && (
         <div>
@@ -240,26 +260,6 @@ export default function HomePage() {
                 </div>
               )
             })}
-          </div>
-        </div>
-      )}
-
-      {/* Recent transactions */}
-      {recentTransactions.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-semibold text-slate-900 tracking-tight">Recent</h2>
-            <Link
-              href="/history"
-              className="text-sm text-indigo-600 font-medium hover:text-indigo-700 transition-colors"
-            >
-              See all
-            </Link>
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm divide-y divide-slate-50" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-            {recentTransactions.map(txn => (
-              <TransactionRow key={txn.id} txn={txn} />
-            ))}
           </div>
         </div>
       )}
