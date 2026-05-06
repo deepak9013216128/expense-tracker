@@ -9,6 +9,7 @@ import {
 import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
 import { PendingTransaction, ImportSession } from '@/types'
+import { txnFingerprint } from '@/lib/txnFingerprint'
 
 function toTimestamp(d: Date) { return Timestamp.fromDate(d) }
 
@@ -95,7 +96,8 @@ export function useImports() {
       approvedCount: 0,
     })
     chunks[0]?.forEach(row => {
-      const ref = doc(collection(db, 'users', user.uid, 'pending_transactions'))
+      const id = txnFingerprint(row)
+      const ref = doc(db, 'users', user.uid, 'pending_transactions', id)
       firstBatch.set(ref, { ...row, sessionId, importedAt: toTimestamp(now), date: toTimestamp(row.date) })
     })
     await firstBatch.commit()
@@ -103,7 +105,8 @@ export function useImports() {
     for (let i = 1; i < chunks.length; i++) {
       const batch = writeBatch(db)
       chunks[i].forEach(row => {
-        const ref = doc(collection(db, 'users', user.uid, 'pending_transactions'))
+        const id = txnFingerprint(row)
+        const ref = doc(db, 'users', user.uid, 'pending_transactions', id)
         batch.set(ref, { ...row, sessionId, importedAt: toTimestamp(now), date: toTimestamp(row.date) })
       })
       await batch.commit()
@@ -123,7 +126,9 @@ export function useImports() {
   const approveTransaction = async (txn: PendingTransaction) => {
     if (!user) throw new Error('Not authenticated')
     const batch = writeBatch(db)
-    const txnRef = doc(collection(db, 'users', user.uid, 'transactions'))
+    // Use same fingerprint as doc ID so re-importing already-approved txns is a no-op
+    const txnId = txnFingerprint(txn)
+    const txnRef = doc(db, 'users', user.uid, 'transactions', txnId)
     batch.set(txnRef, {
       amount: txn.amount,
       description: txn.description,
@@ -133,6 +138,7 @@ export function useImports() {
       notes: txn.notes,
       date: toTimestamp(txn.date),
       createdAt: toTimestamp(new Date()),
+      upiRef: txn.upiRef || '',
     })
     batch.delete(doc(db, 'users', user.uid, 'pending_transactions', txn.id))
     batch.update(doc(db, 'users', user.uid, 'import_sessions', txn.sessionId), {
@@ -157,7 +163,8 @@ export function useImports() {
     for (let i = 0; i < chunks.length; i++) {
       const batch = writeBatch(db)
       chunks[i].forEach(txn => {
-        const txnRef = doc(collection(db, 'users', user.uid, 'transactions'))
+        const txnId = txnFingerprint(txn)
+        const txnRef = doc(db, 'users', user.uid, 'transactions', txnId)
         batch.set(txnRef, {
           amount: txn.amount,
           description: txn.description,
@@ -167,6 +174,7 @@ export function useImports() {
           notes: txn.notes,
           date: toTimestamp(txn.date),
           createdAt: toTimestamp(now),
+          upiRef: txn.upiRef || '',
         })
         batch.delete(doc(db, 'users', user.uid, 'pending_transactions', txn.id))
       })

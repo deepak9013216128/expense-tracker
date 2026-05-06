@@ -35,6 +35,7 @@ function fromFirestore(data: Record<string, unknown>, id: string): Transaction {
     notes: (data.notes as string) || '',
     date: data.date.toDate(),
     createdAt: data.createdAt.toDate(),
+    upiRef: (data.upiRef as string) || '',
   }
 }
 

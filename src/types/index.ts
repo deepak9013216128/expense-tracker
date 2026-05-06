@@ -10,6 +10,7 @@ export interface Transaction {
   notes: string
   date: Date
   createdAt: Date
+  upiRef?: string
 }
 
 export interface ArchivedTransaction extends Transaction {

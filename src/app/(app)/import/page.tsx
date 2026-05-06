@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import { useImports } from '@/hooks/useImports'
+import { useTransactions } from '@/hooks/useTransactions'
+import { txnFingerprint } from '@/lib/txnFingerprint'
 import { PendingTransaction, DEFAULT_CATEGORIES } from '@/types'
 import { formatINR } from '@/lib/format'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -184,6 +186,21 @@ function EditModal({
 
 export default function ImportPage() {
   const { sessions, pending, loading, importTransactions, updatePending, approveTransaction, approveAll, rejectTransaction, rejectAll } = useImports()
+  const { transactions } = useTransactions()
+
+  // Build set of existing fingerprints from pending + approved transactions
+  // pending doc IDs and approved transaction doc IDs are both fingerprints
+  const existingFingerprints = useMemo(() => {
+    const fp = new Set<string>()
+    // pending doc IDs are fingerprints (set by useImports)
+    pending.forEach(t => fp.add(t.id))
+    // approved transaction doc IDs are fingerprints; also compute from upiRef as fallback
+    transactions.forEach(t => {
+      fp.add(t.id)
+      fp.add(txnFingerprint({ upiRef: t.upiRef, date: t.date, amount: t.amount, description: t.description }))
+    })
+    return fp
+  }, [pending, transactions])
 
   // Upload / preview state
   const [preview, setPreview]         = useState<ParsedRow[] | null>(null)
@@ -206,14 +223,21 @@ export default function ImportPage() {
     try {
       const rows = await parseXLSX(file)
       if (!rows.length) { toast.error('No transactions found in file'); return }
-      setPreview(rows)
+      const unique = rows.filter(r => !existingFingerprints.has(txnFingerprint(r)))
+      const dupeCount = rows.length - unique.length
+      if (!unique.length) {
+        toast.error('All transactions in this file already exist — nothing new to import')
+        return
+      }
+      if (dupeCount > 0) toast.info(`${dupeCount} duplicate${dupeCount > 1 ? 's' : ''} skipped`)
+      setPreview(unique)
       setPreviewFile(file.name)
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed to parse file')
     } finally {
       setParsing(false)
     }
-  }, [])
+  }, [existingFingerprints])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault(); setDragging(false)
